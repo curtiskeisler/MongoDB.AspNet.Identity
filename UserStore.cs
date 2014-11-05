@@ -15,8 +15,16 @@ namespace MongoDB.AspNet.Identity
     ///     Class UserStore.
     /// </summary>
     /// <typeparam name="TUser">The type of the t user.</typeparam>
-    public class UserStore<TUser> : IUserLoginStore<TUser>, IUserClaimStore<TUser>, IUserRoleStore<TUser>,
-        IUserPasswordStore<TUser>, IUserSecurityStampStore<TUser>
+    public class UserStore<TUser> : IUserLoginStore<TUser>,
+        IUserClaimStore<TUser>,
+        IUserRoleStore<TUser>,
+        IUserPasswordStore<TUser>,
+        IUserSecurityStampStore<TUser>,
+        IUserEmailStore<TUser>,
+        IUserStore<TUser>,
+        IUserLockoutStore<TUser, string>,
+        IUserTwoFactorStore<TUser, string>,
+        IUserPhoneNumberStore<TUser>
         where TUser : IdentityUser
     {
         #region Private Methods & Variables
@@ -36,52 +44,8 @@ namespace MongoDB.AspNet.Identity
         /// </summary>
         private const string collectionName = "AspNetUsers";
 
-        /// <summary>
-        ///     Gets the database from connection string.
-        /// </summary>
-        /// <param name="connectionString">The connection string.</param>
-        /// <returns>MongoDatabase.</returns>
-        /// <exception cref="System.Exception">No database name specified in connection string</exception>
-        private MongoDatabase GetDatabaseFromSqlStyle(string connectionString)
-        {
-            var conString = new MongoConnectionStringBuilder(connectionString);
-            MongoClientSettings settings = MongoClientSettings.FromConnectionStringBuilder(conString);
-            MongoServer server = new MongoClient(settings).GetServer();
-            if (conString.DatabaseName == null)
-            {
-                throw new Exception("No database name specified in connection string");
-            }
-            return server.GetDatabase(conString.DatabaseName);
-        }
 
-        /// <summary>
-        ///     Gets the database from URL.
-        /// </summary>
-        /// <param name="url">The URL.</param>
-        /// <returns>MongoDatabase.</returns>
-        private MongoDatabase GetDatabaseFromUrl(MongoUrl url)
-        {
-            var client = new MongoClient(url);
-            MongoServer server = client.GetServer();
-            if (url.DatabaseName == null)
-            {
-                throw new Exception("No database name specified in connection string");
-            }
-            return server.GetDatabase(url.DatabaseName); // WriteConcern defaulted to Acknowledged
-        }
-
-        /// <summary>
-        ///     Uses connectionString to connect to server and then uses databae name specified.
-        /// </summary>
-        /// <param name="connectionString">The connection string.</param>
-        /// <param name="dbName">Name of the database.</param>
-        /// <returns>MongoDatabase.</returns>
-        private MongoDatabase GetDatabase(string connectionString, string dbName)
-        {
-            var client = new MongoClient(connectionString);
-            MongoServer server = client.GetServer();
-            return server.GetDatabase(dbName);
-        }
+        private MongoContext _mongoContext;
 
         #endregion
 
@@ -102,9 +66,11 @@ namespace MongoDB.AspNet.Identity
         /// <param name="connectionNameOrUrl">The connection name or URL.</param>
         public UserStore(string connectionNameOrUrl)
         {
+            _mongoContext = new MongoContext(connectionNameOrUrl);
+
             if (connectionNameOrUrl.ToLower().StartsWith("mongodb://"))
             {
-                db = GetDatabaseFromUrl(new MongoUrl(connectionNameOrUrl));
+                db = _mongoContext.GetDatabaseFromUrl(new MongoUrl(connectionNameOrUrl));
             }
             else
             {
@@ -112,11 +78,11 @@ namespace MongoDB.AspNet.Identity
                     ConfigurationManager.ConnectionStrings[connectionNameOrUrl].ConnectionString;
                 if (connStringFromManager.ToLower().StartsWith("mongodb://"))
                 {
-                    db = GetDatabaseFromUrl(new MongoUrl(connStringFromManager));
+                    db = _mongoContext.GetDatabaseFromUrl(new MongoUrl(connStringFromManager));
                 }
                 else
                 {
-                    db = GetDatabaseFromSqlStyle(connStringFromManager);
+                    db = _mongoContext.GetDatabaseFromSqlStyle(connStringFromManager);
                 }
             }
         }
@@ -132,11 +98,11 @@ namespace MongoDB.AspNet.Identity
         {
             if (connectionNameOrUrl.ToLower().StartsWith("mongodb://"))
             {
-                db = GetDatabase(connectionNameOrUrl, dbName);
+                db = _mongoContext.GetDatabase(connectionNameOrUrl, dbName);
             }
             else
             {
-                db = GetDatabase(ConfigurationManager.ConnectionStrings[connectionNameOrUrl].ConnectionString, dbName);
+                db = _mongoContext.GetDatabase(ConfigurationManager.ConnectionStrings[connectionNameOrUrl].ConnectionString, dbName);
             }
         }
 
@@ -162,11 +128,11 @@ namespace MongoDB.AspNet.Identity
             if (useMongoUrlFormat)
             {
                 var url = new MongoUrl(connectionString);
-                db = GetDatabaseFromUrl(url);
+                db = _mongoContext.GetDatabaseFromUrl(url);
             }
             else
             {
-                db = GetDatabaseFromSqlStyle(connectionString);
+                db = _mongoContext.GetDatabaseFromSqlStyle(connectionString);
             }
         }
 
@@ -544,6 +510,242 @@ namespace MongoDB.AspNet.Identity
         }
 
         #endregion
+
+#region "IUserEmailStore Methods"
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="email"></param>
+        /// <returns></returns>
+        public Task<TUser> FindByEmailAsync(string email)
+        {
+            ThrowIfDisposed();
+            TUser user = db.GetCollection<TUser>(collectionName).FindOne((Query.EQ("Email", email)));
+            return Task.FromResult(user);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<string> GetEmailAsync(TUser user)
+        {
+            ThrowIfDisposed();
+            if (user == null)
+                throw new ArgumentNullException("user");
+            return Task.FromResult<string>(user.Email);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<bool> GetEmailConfirmedAsync(TUser user)
+        {
+            ThrowIfDisposed();
+            if (user == null)
+                throw new ArgumentNullException("user");
+            return Task.FromResult<bool>(user.EmailConfirmed);
+        }
+
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="email"></param>
+        /// <returns></returns>
+        public Task SetEmailAsync(TUser user, string email)
+        {
+            ThrowIfDisposed();
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            user.Email = email;
+            return Task.FromResult(0);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="confirmed"></param>
+        /// <returns></returns>
+        public Task SetEmailConfirmedAsync(TUser user, bool confirmed)
+        {
+            ThrowIfDisposed();
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            user.EmailConfirmed = confirmed;
+            return Task.FromResult(0);
+        }
+
+        /// <summary>
+        /// return the Access Failed Count for users.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<int> GetAccessFailedCountAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<int>(user.AccessFailedCount);
+        }
+
+        /// <summary>
+        /// return the User Account Lockout Status.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<bool> GetLockoutEnabledAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<bool>(user.LockoutEnabled);
+        }
+
+        /// <summary>
+        /// returns the Lockout End Date
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<DateTimeOffset> GetLockoutEndDateAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<DateTimeOffset>(user.LockoutEnd);
+        }
+
+        /// <summary>
+        /// Increments the Access failed count.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<int> IncrementAccessFailedCountAsync(TUser user)
+        {
+            user.AccessFailedCount = user.AccessFailedCount + 1;
+            return Task.FromResult<int>(user.AccessFailedCount);
+        }
+
+        /// <summary>
+        /// Resets the access failed count.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task ResetAccessFailedCountAsync(TUser user)
+        {
+            user.AccessFailedCount = 0;
+            return Task.FromResult<int>(0);
+        }
+
+        /// <summary>
+        /// Enables the User Lockcout.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="enabled"></param>
+        /// <returns></returns>
+        public Task SetLockoutEnabledAsync(TUser user, bool enabled)
+        {
+            user.LockoutEnabled = enabled;
+            return Task.FromResult<int>(0);
+        }
+
+        /// <summary>
+        /// Sets the user lockout end date.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="lockoutEnd"></param>
+        /// <returns></returns>
+        public Task SetLockoutEndDateAsync(TUser user, DateTimeOffset lockoutEnd)
+        {
+            user.LockoutEnd = lockoutEnd;
+            return Task.FromResult<int>(0);
+        }
+
+        /// <summary>
+        /// returns if the twofactor authentication is enabled for user.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<bool> GetTwoFactorEnabledAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<bool>(user.TwoFactorEnabled);
+        }
+
+        /// <summary>
+        /// Enables/Disables the Two Factor Authentication
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="enabled"></param>
+        /// <returns></returns>
+        public Task SetTwoFactorEnabledAsync(TUser user, bool enabled)
+        {
+            user.LockoutEnabled = enabled;
+            return Task.FromResult<int>(0);
+        }
+
+        /// <summary>
+        /// returns the User Phone Number
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<string> GetPhoneNumberAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<string>(user.PhoneNumber);
+        }
+
+        /// <summary>
+        /// returns a boolean if the user phonenumber is confirmed or not.
+        /// </summary>
+        /// <param name="user"></param>
+        /// <returns></returns>
+        public Task<bool> GetPhoneNumberConfirmedAsync(TUser user)
+        {
+            if (user == null)
+                throw new ArgumentNullException("user");
+
+            return Task.FromResult<bool>(user.PhoneNumberConfirmed);
+        }
+
+        /// <summary>
+        /// Sets the user phone number
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="phoneNumber"></param>
+        /// <returns></returns>
+        public Task SetPhoneNumberAsync(TUser user, string phoneNumber)
+        {
+            user.PhoneNumber = phoneNumber;
+            return Task.FromResult<int>(0);
+        }
+
+        /// <summary>
+        /// set's boolean value if the users phonenumber is confirmed or not
+        /// </summary>
+        /// <param name="user"></param>
+        /// <param name="confirmed"></param>
+        /// <returns></returns>
+        public Task SetPhoneNumberConfirmedAsync(TUser user, bool confirmed)
+        {
+            user.PhoneNumberConfirmed = confirmed;
+            return Task.FromResult<int>(0);
+        }
+
+#endregion
+
     }
 }
         

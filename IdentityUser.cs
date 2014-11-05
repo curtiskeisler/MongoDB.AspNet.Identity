@@ -2,6 +2,7 @@
 using Microsoft.AspNet.Identity;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
+using System;
 
 
 namespace MongoDB.AspNet.Identity
@@ -24,6 +25,16 @@ namespace MongoDB.AspNet.Identity
         /// </summary>
         /// <value>The name of the user.</value>
 		public virtual string UserName { get; set; }
+
+        /// <summary>
+        /// Gets or sets the user Email
+        /// </summary>
+        public virtual string Email { get; set; }
+
+        /// <summary>
+        /// Gets or sets the Email confirmed flag.
+        /// </summary>
+        public virtual bool EmailConfirmed { get; set; }
         /// <summary>
         /// Gets or sets the password hash.
         /// </summary>
@@ -34,6 +45,37 @@ namespace MongoDB.AspNet.Identity
         /// </summary>
         /// <value>The security stamp.</value>
 		public virtual string SecurityStamp { get; set; }
+
+        /// <summary>
+        ///     PhoneNumber for the user
+        /// </summary>
+        public virtual string PhoneNumber { get; set; }
+
+        /// <summary>
+        ///     True if the phone number is confirmed, default is false
+        /// </summary>
+        public virtual bool PhoneNumberConfirmed { get; set; }
+
+        /// <summary>
+        ///     DateTime in UTC when lockout ends, any time in the past is considered not locked out.
+        /// </summary>
+        public virtual DateTimeOffset LockoutEnd { get; set; }
+
+        /// <summary>
+        ///     Is two factor enabled for the user
+        /// </summary>
+        public virtual bool TwoFactorEnabled { get; set; }
+
+        /// <summary>
+        ///     Is lockout enabled for this user
+        /// </summary>
+        public virtual bool LockoutEnabled { get; set; }
+
+        /// <summary>
+        ///     Used to record failures for the purposes of lockout
+        /// </summary>
+        public virtual int AccessFailedCount { get; set; }
+
         /// <summary>
         /// Gets the roles.
         /// </summary>
@@ -49,6 +91,7 @@ namespace MongoDB.AspNet.Identity
         /// </summary>
         /// <value>The logins.</value>
 		public virtual List<UserLoginInfo> Logins { get; private set; }
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="IdentityUser"/> class.
